@@ -116,7 +116,8 @@ from evaluators.softsufficiency import compute_all_soft_ns
 from evaluators.FAD import compute_all_fad
 from evaluators.monotonicity import compute_all_monotonicity
 from evaluators.IOU import compute_all_IOU
-from EvalXAI.evaluators.sensitivity import compute_all_sensitivity
+from evaluators.sensitivity import compute_all_sensitivity
+from evaluators.AUPRC import evaluate
 import datasets
 from typing import Dict, List, Optional, Union
 import json
@@ -217,26 +218,25 @@ class ExplainerEvaluator:
         # print(f"Final FAD N-AUC: {fad_n_auc}")
         
         #----------------------------SOFT SUFFICIENCY---------------------------------------------------
-        normalized_sufficiency_scores = compute_all_soft_ns(dataset, self.model, self.tokenizer, precomputed_scores)
-        print(f"Normalized Soft Sufficiency Scores: {normalized_sufficiency_scores}")
-
-        #----------------------------MONOTONICITY---------------------------------------------------
-        # average_monotonicity = compute_all_monotonicity(model, tokenizer, precomputed_scores)
-        # print(f"Final monotonicity: {average_monotonicity}")
+        # normalized_sufficiency_scores = compute_all_soft_ns(dataset, self.model, self.tokenizer, precomputed_scores)
+        # print(f"Normalized Soft Sufficiency Scores: {normalized_sufficiency_scores}")
 
         #----------------------------IOU and F1 Score---------------------------------------------------
         # IOU_F1 = compute_all_IOU(dataset, precomputed_scores)
         # print(f"Final IOU and F1 Score: {IOU_F1}")
 
         #----------------------------Sensitivity---------------------------------------------------
-        # sensitivity_score= compute_all_sensitivity(model, tokenizer, dataset, precomputed_scores)
+        # sensitivity_score= compute_all_sensitivity(self.model, self.tokenizer, dataset, precomputed_scores)
         # print(f"Final Sensitivity: {sensitivity_score}")
+
+        #----------------------------MONOTONICITY---------------------------------------------------
+        # average_monotonicity = compute_all_monotonicity(model, tokenizer, precomputed_scores)
+        # print(f"Final monotonicity: {average_monotonicity}")
 
         #----------------------------AUPRC---------------------------------------------------
-        # auprc_score= compute_all_sensitivity(model, tokenizer, dataset, precomputed_scores)
-        # print(f"Final Sensitivity: {sensitivity_score}")
-        # return IOU_F1
-
+        auprc_score= evaluate(dataset,precomputed_scores)
+        print(f"AUPRC score: {auprc_score}")
+        return auprc_score
                
     def run_explanations(self, dataset_name,explainer, overwrite=False):
         """
@@ -300,8 +300,8 @@ def main():
     evaluator = ExplainerEvaluator(model_name="bert-base-uncased", num_labels=3)
     
     # Define the datasets, explainers, and models you want to use for benchmarking
-    datasets = ["HateXplain",]
-    # datasets = ["MovieReviews","HateXplain"]  # Add more datasets here if needed
+    # datasets = ["HateXplain",]
+    datasets = ["MovieReviews"]  # Add more datasets here if needed
     explainers = [IntegratedGradientsExplainer]
     # explainers =[InputXGradientExplainer,IntegratedGradientsExplainer]  # Add more explainers here if needed
     models = ["bert-base-uncased"]  # Add more models here if needed

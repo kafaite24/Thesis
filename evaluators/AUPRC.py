@@ -29,8 +29,6 @@ class AUPRCEvaluator:
             tuple: Arrays of precision and recall values.
         """
         # Ensure saliency scores and rationale masks have the same length
-        print(f"saliency scores length {len(saliency_scores)}, ground trurh length {len(ground_truth_rationale)}")
-        print(ground_truth_rationale)
         min_len = min(len(saliency_scores), len(ground_truth_rationale))
         saliency_scores = saliency_scores[:min_len]
         ground_truth_rationale = ground_truth_rationale[:min_len]
@@ -66,7 +64,7 @@ class AUPRCEvaluator:
         precision, recall = self.calculate_precision_recall(saliency_scores, ground_truth_rationale)
         return auc(recall, precision)
 
-def evaluate(self, split_type="test"):
+def evaluate(dataset, saliency_scores, split_type="test"):
     """
     Evaluate AUPRC for the entire dataset split.
 
@@ -76,28 +74,28 @@ def evaluate(self, split_type="test"):
     Returns:
         float: Average AUPRC score across the dataset.
     """
+    AUPRC_evaluator = AUPRCEvaluator(dataset, saliency_scores)
     auprc_scores = []
 
     print(f"Evaluating {split_type} split with AUPRC...")
-
     # Iterate over precomputed saliency scores
-    for idx, entry in enumerate(self.saliency_scores):
-        text = entry["text"]
-        saliency_scores = np.array(entry["saliency_scores"])
-
+    for idx, entry in enumerate(saliency_scores):
         # Get ground truth rationale mask from dataset
-        review_data = self.dataset.get_review(idx, split_type=split_type)
-        ground_truth_rationale = review_data["rationale"]
+        instance = dataset.get_instance(idx, split_type=split_type)
+        ground_truth_rationale = instance["rationale"]
+       
+        if(len(ground_truth_rationale)>0):
+            saliency_score = saliency_scores[idx]["saliency_scores"]
+            # print(f"tokens in instance {instance['tokens']}")
+            # print(f"tokens in saliency scores {saliency_scores[idx]['tokens']}")
+            print(f"saliency scores length {len(saliency_scores[idx]['saliency_scores'])}, ground truth length {len(ground_truth_rationale)}")
 
-        # Calculate AUPRC
-        auprc = self.calculate_auprc(saliency_scores, ground_truth_rationale)
-        auprc_scores.append(auprc)
-
-        # Debug output for individual samples
-        print(f"Review {idx + 1}:")
-        # print(f"Text: {text}")
-        print(f"AUPRC: {auprc:.4f}\n")
-
+            auprc = AUPRC_evaluator.calculate_auprc(saliency_score, ground_truth_rationale)
+            auprc_scores.append(auprc)
+            print(f"Text {idx + 1}:")
+            print(f"AUPRC: {auprc:.4f}\n")
+        else:
+            continue
     # Average AUPRC across the dataset
     average_auprc = np.mean(auprc_scores)
     print(f"Average AUPRC Across Dataset: {average_auprc:.4f}")

@@ -241,4 +241,6 @@ class HateXplain():
 
             for token_i in converted_token:
                 token_rationale.append(rationale_t)
+        token_rationale = [0] + token_rationale + [0]  # Add rationale for [CLS] and [SEP] (set to 0)
+    
         return token_rationale

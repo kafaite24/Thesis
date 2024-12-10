@@ -65,7 +65,7 @@ class FADEvaluator:
 
         for percent_to_drop in percent_dropped_features:
             predictions, labels = [], []
-
+            print(f"perc to drop {percent_to_drop}")
             for idx, entry in enumerate(self.saliency_scores):
                 print(idx)
                 # Get the text and saliency scores
@@ -76,10 +76,9 @@ class FADEvaluator:
 
                 # Replace tokens with baseline values
                 modified_tokens = self._replace_tokens_with_baseline(tokens, saliency_scores, percent_to_drop)
-
                 # Detokenize back into a string
                 modified_text = self.tokenizer.convert_tokens_to_string(modified_tokens)
-
+                # print(f"modified text {modified_text}")
                 # Tokenize and encode input for the model
                 encoded_input = self.tokenizer(modified_text, return_tensors="pt", truncation=True, padding=True).to(self.device)
 
@@ -87,19 +86,20 @@ class FADEvaluator:
                 with torch.no_grad():
                     logits = self.model(**encoded_input).logits
                 prediction = torch.argmax(logits, dim=1).item()
-
+                # print(f"prediction {prediction}     label {label}")
                 predictions.append(prediction)
                 labels.append(label)
 
             # Compute accuracy
             accuracy = accuracy_score(labels, predictions)
+            # print(f"accuracy {accuracy}")
             results.append({"Percent Dropped": percent_to_drop, "Accuracy": accuracy})
 
         # Convert results to DataFrame
         results_df = pd.DataFrame(results)
         return results_df
 
-    def calculate_n_auc(self, results_df, percent_range=(0, 20)):
+    def calculate_n_auc(self, results_df, percent_range=(0,20)):
         """
         Calculate the Normalized Area Under the Curve (N-AUC).
 
@@ -172,9 +172,10 @@ def compute_all_fad(dataset, model, tokenizer, saliency_scores, device="cpu", pe
     
     # Perform the evaluation
     results_df = fade_evaluator.evaluate(percent_dropped_features)
-    
+    print(f"results df {results_df}")
     # Compute the Normalized AUC (n_auc)
     final_n_auc = fade_evaluator.calculate_n_auc(results_df, percent_range)
+    fade_evaluator.plot_results(results_df)
     
     return final_n_auc
 

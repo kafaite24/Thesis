@@ -178,7 +178,7 @@ def compute_all_soft_ns(dataset, model, tokenizer, precomputed_scores, max_len=5
     all_predictions = []
      
 
-    for i in range(0, 1):
+    for i in range(0, len(precomputed_scores)):
         print(i)
         instance = dataset.get_instance(i, split_type='test') 
         original_sentence= instance['text']        

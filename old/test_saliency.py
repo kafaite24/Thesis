@@ -15,7 +15,7 @@ import os
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from transformers import BertTokenizerFast, BertForSequenceClassification
-from evaluators.sensitivity_2 import SensitivityEvaluator
+from EvalXAI.evaluators.sensitivity import SensitivityEvaluator
 # # Load model and tokenizer
 # model = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
 # tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")

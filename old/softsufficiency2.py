@@ -57,9 +57,8 @@ class SoftSufficiencyEvaluator:
                 # Truncating importance scores
                 importance_scores = importance_scores[:, :attention_mask.size(1), :]
         
-        normalized_importance_scores = (importance_scores - importance_scores.min()) / (importance_scores.max() - importance_scores.min())
         # Create a Bernoulli mask based on importance scores (probability of keeping each element)
-        mask = torch.bernoulli(normalized_importance_scores).to(embeddings.device)  # Shape: (batch_size, seq_len, 1)
+        mask = torch.bernoulli(importance_scores).to(embeddings.device)  # Shape: (batch_size, seq_len, 1)
         
         # Apply the attention mask (this will zero out the padding tokens)
         mask = mask * attention_mask  # Shape: (batch_size, seq_len, 1)
@@ -90,15 +89,10 @@ class SoftSufficiencyEvaluator:
         # Assuming we are doing classification, calculate the difference for the correct class
         original_pred = np.argmax(original_probs, axis=-1)
         perturbed_pred = np.argmax(perturbed_probs, axis=-1)
-        print(f"original prob {original_probs}")
-        print(f"perturbed prob {perturbed_probs}")
-
-        print(f"original pred {original_pred}")
-        print(f"perturbed pred {perturbed_pred}")
+        
         # For sufficiency, we compute the drop in probability
         sufficiency = 1 - max(0, original_probs[0, original_pred[0]] - perturbed_probs[0, perturbed_pred[0]])
-        print(f"original_pred[0] {original_pred[0]}   original probs {original_probs[0, original_pred[0]]}")
-        print(f"perturbed pred[0] {perturbed_pred[0]}   original probs {perturbed_probs[0, perturbed_pred[0]]}")
+        
         return sufficiency
 
     def normalize_sufficiency(self, sufficiency, baseline_sufficiency):
@@ -129,9 +123,10 @@ class SoftSufficiencyEvaluator:
             tuple: The normalized sufficiency scores and model predictions.
         """
         # Tokenize the sentences
-        original_input = self.tokenizer(original_sentences, padding=True, truncation=True, 
+        inputs = self.tokenizer(original_sentences, padding=True, truncation=True, 
                                 max_length=self.max_len, return_tensors="pt").to(self.device)
         # Get model predictions on original input
+        original_input = inputs
         original_output = self.model(**original_input)
         original_probs = F.softmax(original_output.logits, dim=-1).detach().cpu().numpy()
 
@@ -141,24 +136,24 @@ class SoftSufficiencyEvaluator:
         # Get embeddings (using the model's outputs)
         with torch.no_grad():
             outputs = self.model.bert(**original_input)  # Get outputs from the BERT model
-            original_embeddings = outputs.last_hidden_state  # Shape: (batch_size, seq_len, embed_dim)
+            embeddings = outputs.last_hidden_state  # Shape: (batch_size, seq_len, embed_dim)
         
         # Apply soft perturbation based on importance scores
-        perturbed_embeddings = self.soft_perturb(original_embeddings, self.importance_scores, original_input['attention_mask'])
+        perturbed_embeddings = self.soft_perturb(embeddings, self.importance_scores, inputs['attention_mask'])
+
         # Create a perturbed input dictionary (copy the original input and update input_ids)
-        perturbed_input = original_input.copy()
+        perturbed_input = inputs.copy()
         perturbed_input['input_ids'] = perturbed_embeddings.argmax(dim=-1)  # Convert embeddings to token IDs for input
         
         # Compute the sufficiency score based on the perturbed input
         sufficiency = self.compute_sufficiency(original_input, perturbed_input)
-        print(f"baseline sufficiency {baseline_sufficiency}")
-        print(f"sufficiency {sufficiency}")
+
         # Normalize the sufficiency score
         normalized_sufficiency = self.normalize_sufficiency(sufficiency, baseline_sufficiency)
-        print(f"normalized_suff {normalized_sufficiency}")
+        
         return [normalized_sufficiency], original_probs
     
-def compute_all_soft_ns(dataset, model, tokenizer, precomputed_scores, max_len=512):
+def compute_all_soft_ns(dataset, model, tokenizer, precomputed_scores, max_len=512, batch_size=8):
     """
     Computes Soft Normalized Sufficiency for all samples in the dataset.
     
@@ -176,30 +171,30 @@ def compute_all_soft_ns(dataset, model, tokenizer, precomputed_scores, max_len=5
     """
     all_normalized_sufficiency = []
     all_predictions = []
-     
 
-    for i in range(0, 1):
+    num_samples = dataset.get_data_length(split_type="test")
+
+    # Iterate over the dataset in batches
+    for i in range(0, num_samples, batch_size):
         print(i)
-        instance = dataset.get_instance(i, split_type='test') 
-        original_sentence= instance['text']        
-        # Ensure the instance and entry are aligned
-        if instance["text"] != precomputed_scores[i]["text"]:
-            print(f"Mismatch! Instance text: {instance['text']}, Saliency text: {precomputed_scores[i]['text']}")
-            return
-        # Extract the importance scores for each sample in the batch
-        saliency_scores = precomputed_scores[i]['saliency_scores']
-        #Pad the importance scores to the max_len (512)
-        padded_saliency_scores = []
- 
-        if len(saliency_scores) < max_len:
-            # Pad with zeros (assuming no importance for padding tokens)
-            padded_score = torch.cat([torch.tensor(saliency_scores), torch.zeros(max_len - len(saliency_scores))])
-        else:
-                # Truncate if the length exceeds max_len
-            padded_score = torch.tensor(saliency_scores[:max_len])
+        batch_samples = [dataset.get_review(j, split_type="test") for j in range(i, min(i + batch_size, num_samples))]
         
-        # print(f"padded_score {padded_score}")
-        padded_saliency_scores.append(padded_score)
+        # Extract the text for each sample in the batch
+        original_sentences = [sample['text'] for sample in batch_samples]
+        
+        # Extract the importance scores for each sample in the batch
+        saliency_scores = [entry['saliency_scores'] for entry in precomputed_scores[i:i + batch_size]]
+        
+        # Pad the importance scores to the max_len (512)
+        padded_saliency_scores = []
+        for score in saliency_scores:
+            if len(score) < max_len:
+                # Pad with zeros (assuming no importance for padding tokens)
+                padded_score = torch.cat([torch.tensor(score), torch.zeros(max_len - len(score))])
+            else:
+                # Truncate if the length exceeds max_len
+                padded_score = torch.tensor(score[:max_len])
+            padded_saliency_scores.append(padded_score)
 
         # Convert to a tensor and move to the correct device
         importance_scores = torch.stack(padded_saliency_scores).to(model.device)
@@ -208,7 +203,7 @@ def compute_all_soft_ns(dataset, model, tokenizer, precomputed_scores, max_len=5
         soft_ns = SoftSufficiencyEvaluator(model, tokenizer, max_len, importance_scores)
 
         # Compute Soft Normalized Sufficiency for the batch
-        normalized_sufficiency, model_predictions = soft_ns.compute(original_sentence)
+        normalized_sufficiency, model_predictions = soft_ns.compute(original_sentences)
         print(f"normalized sufficiency for {i} is {normalized_sufficiency}")
         # Append results to the lists
         all_normalized_sufficiency.extend(normalized_sufficiency)

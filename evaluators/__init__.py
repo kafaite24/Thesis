@@ -9,7 +9,7 @@ from .IOU import IOUEvaluator
 # from .AUPRC import AUPRCEvaluator
 from .FAD import FADEvaluator
 from .softsufficiency import SoftSufficiencyEvaluator
-from .sensitivity_2 import SensitivityEvaluator
+from .sensitivity import SensitivityEvaluator
 
 __all__ = ["InfidelityEvaluator","SensitivityEvaluator","MonotonicityEvaluator",
            "FaithfulnessEvaluator","FaithfulnessCorrelationEvaluator","IOUEvaluator","AUPRCEvaluator","FADEvaluator",

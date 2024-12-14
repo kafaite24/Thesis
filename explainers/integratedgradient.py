@@ -37,8 +37,15 @@ class IntegratedGradientsExplainer(BaseExplainer):
         )
         
         # Convert the IDs into input embeddings
+        # input_ids_tensor = torch.tensor(ids, device=self.device).unsqueeze(0)  # Add batch dimension
+        # embeddings = self.model.bert.embeddings(input_ids_tensor)
+
+        # Convert the IDs into input embeddings
         input_ids_tensor = torch.tensor(ids, device=self.device).unsqueeze(0)  # Add batch dimension
-        embeddings = self.model.bert.embeddings(input_ids_tensor)
+
+        # Dynamically access input embeddings for the model
+        embedding_layer = self.model.get_input_embeddings()
+        embeddings = embedding_layer(input_ids_tensor)
         
         return embeddings
 
@@ -120,7 +127,9 @@ class IntegratedGradientsExplainer(BaseExplainer):
         input_ids = encoding["input_ids"].to(self.device)
         
         # Access embeddings through the `bert` attribute in the model
-        inputs_embeds = self.model.bert.embeddings(input_ids)
+        # inputs_embeds = self.model.bert.embeddings(input_ids)
+        embedding_layer = self.model.get_input_embeddings()
+        inputs_embeds = embedding_layer(input_ids)
         return inputs_embeds
 
     def get_tokens(self, text):

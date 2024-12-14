@@ -124,7 +124,30 @@ class HateXplain():
         else:
             # Otherwise, return the rationale for the specific label (may be a list of lists if rationale_union is False)
             return rationale_by_label
+    
+    def _get_ground_truth(self, idx, split_type: str = 'test'):
+        item_idx = self._get_item(idx, split_type)
+        labels = item_idx["annotators"]["label"]
+        # Label by majority voting
+        return max(set(labels), key=labels.count)
 
+    def get_true_rationale_from_words_to_tokens(
+        self, word_based_tokens: List[str], words_based_rationales: List[int]
+    ) -> List[int]:
+        # original_tokens --> list of words.
+        # rationale_original_tokens --> 0 or 1, if the token belongs to the rationale or not
+        # Typically, the importance is associated with each word rather than each token.
+        # We convert each word in token using the tokenizer. If a word is in the rationale,
+        # we consider as important all the tokens of the word.
+        token_rationale = []
+        for t, rationale_t in zip(word_based_tokens, words_based_rationales):
+            converted_token = self.tokenizer.encode(t)[1:-1]
+
+            for token_i in converted_token:
+                token_rationale.append(rationale_t)
+        token_rationale = [0] + token_rationale + [0]  # Add rationale for [CLS] and [SEP] (set to 0)
+    
+        return token_rationale
     
     # def _get_rationale(self, idx, split_type: str = 'test', rationale_union=True):
         
@@ -220,27 +243,3 @@ class HateXplain():
     #     ] = self.get_true_rationale_from_words_to_tokens(word_based_tokens, rationale)
 
     #     return rationale_by_label
-
-    def _get_ground_truth(self, idx, split_type: str = 'test'):
-        item_idx = self._get_item(idx, split_type)
-        labels = item_idx["annotators"]["label"]
-        # Label by majority voting
-        return max(set(labels), key=labels.count)
-
-    def get_true_rationale_from_words_to_tokens(
-        self, word_based_tokens: List[str], words_based_rationales: List[int]
-    ) -> List[int]:
-        # original_tokens --> list of words.
-        # rationale_original_tokens --> 0 or 1, if the token belongs to the rationale or not
-        # Typically, the importance is associated with each word rather than each token.
-        # We convert each word in token using the tokenizer. If a word is in the rationale,
-        # we consider as important all the tokens of the word.
-        token_rationale = []
-        for t, rationale_t in zip(word_based_tokens, words_based_rationales):
-            converted_token = self.tokenizer.encode(t)[1:-1]
-
-            for token_i in converted_token:
-                token_rationale.append(rationale_t)
-        token_rationale = [0] + token_rationale + [0]  # Add rationale for [CLS] and [SEP] (set to 0)
-    
-        return token_rationale

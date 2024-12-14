@@ -100,62 +100,7 @@ class MovieReviews:
                 rationale[offsets.index(rationale_offset)] = 1
                 # Test what this function is returning
         return rationale
-    def _get_rationale(self, idx, split_type: str = 'test', rationale_union=True):
-        item_idx = self._get_item(idx, split_type)
-        text = self._get_text(item_idx)
-
-        tokenizer = self.tokenizer
-        encoded_text = tokenizer.encode_plus(
-            text, return_offsets_mapping=True, return_attention_mask=False
-        )
-        tokens = tokenizer.convert_ids_to_tokens(encoded_text["input_ids"])
-        offsets = encoded_text["offset_mapping"]
-
-        rationale_field_name = "evidences"
-        rationale_label = self._get_ground_truth(idx, split_type)
-
-        # Initialize rationale_by_label with zeros for all classes
-        rationale_by_label = [np.zeros(len(tokens), dtype=int) for _ in self.classes]
-
-        if rationale_field_name in item_idx:
-            text_rationales = item_idx[rationale_field_name]
-            rationale_offsets = self._get_offset_rationale(text, text_rationales)
-
-            if len(text_rationales) > 0 and isinstance(text_rationales, list):
-                if rationale_union:
-                    # Flatten the rationale_offsets into a single list
-                    flattened_offsets = [t1 for t in rationale_offsets for t1 in t]
-
-                    # If there are valid rationale offsets, create a single 1D one-hot encoding
-                    if flattened_offsets:
-                        rationale_by_label[rationale_label] = self._get_rationale_one_hot_encoding(
-                            offsets, flattened_offsets, len(tokens)
-                        ).astype(int)
-                    else:
-                        # Fallback: No valid offsets, set to zeros
-                        rationale_by_label[rationale_label] = np.zeros(len(tokens), dtype=int)
-                else:
-                    # If rationale_union is False, concatenate all rationales into a single array
-                    rationales = [
-                        self._get_rationale_one_hot_encoding(
-                            offsets, rationale_offset, len(tokens)
-                        ).astype(int)
-                        for rationale_offset in rationale_offsets if rationale_offset
-                    ]
-                    # Merge all rationales into a single array using np.any (OR) across rationales
-                    if rationales:
-                        rationale_by_label[rationale_label] = np.any(rationales, axis=0).astype(int)
-                    else:
-                        rationale_by_label[rationale_label] = np.zeros(len(tokens), dtype=int)
-            else:
-                # Fallback for missing or invalid rationale
-                rationale_by_label[rationale_label] = np.zeros(len(tokens), dtype=int)
-
-        # Return a single 1D array for the given rationale_label
-        return rationale_by_label[rationale_label]
-
     # def _get_rationale(self, idx, split_type: str = 'test', rationale_union=True):
-
     #     item_idx = self._get_item(idx, split_type)
     #     text = self._get_text(item_idx)
 
@@ -167,50 +112,109 @@ class MovieReviews:
     #     offsets = encoded_text["offset_mapping"]
 
     #     rationale_field_name = "evidences"
-
-    #     # Movie rationales are defined for the ground truth label
     #     rationale_label = self._get_ground_truth(idx, split_type)
 
-    #     rationale_by_label = [NONE_RATIONALE for c in self.classes]
+    #     # Initialize rationale_by_label with zeros for all classes
+    #     rationale_by_label = [np.zeros(len(tokens), dtype=int) for _ in self.classes]
 
     #     if rationale_field_name in item_idx:
     #         text_rationales = item_idx[rationale_field_name]
-
     #         rationale_offsets = self._get_offset_rationale(text, text_rationales)
-    #         if len(text_rationales) > 0 and isinstance(text_rationales, list):
-    #             # It is a list of lists
-    #             if rationale_union:
-    #                 # We get the union of the rationales.
-    #                 rationale_offsets = [t1 for t in rationale_offsets for t1 in t]
-    #                 rationale_by_label[
-    #                     rationale_label
-    #                 ] = self._get_rationale_one_hot_encoding(
-    #                     offsets, rationale_offsets, len(tokens)
-    #                 ).astype(
-    #                     int
-    #                 )
 
+    #         if len(text_rationales) > 0 and isinstance(text_rationales, list):
+    #             if rationale_union:
+    #                 # Flatten the rationale_offsets into a single list
+    #                 flattened_offsets = [t1 for t in rationale_offsets for t1 in t]
+
+    #                 # If there are valid rationale offsets, create a single 1D one-hot encoding
+    #                 if flattened_offsets:
+    #                     rationale_by_label[rationale_label] = self._get_rationale_one_hot_encoding(
+    #                         offsets, flattened_offsets, len(tokens)
+    #                     ).astype(int)
+    #                 else:
+    #                     # Fallback: No valid offsets, set to zeros
+    #                     rationale_by_label[rationale_label] = np.zeros(len(tokens), dtype=int)
     #             else:
-    #                 # We return all of them (deprecated)
+    #                 # If rationale_union is False, concatenate all rationales into a single array
     #                 rationales = [
     #                     self._get_rationale_one_hot_encoding(
     #                         offsets, rationale_offset, len(tokens)
     #                     ).astype(int)
-    #                     for rationale_offset in rationale_offsets
+    #                     for rationale_offset in rationale_offsets if rationale_offset
     #                 ]
-    #                 rationale_by_label[rationale_label] = rationales
-    #                 return rationale_by_label
+    #                 # Merge all rationales into a single array using np.any (OR) across rationales
+    #                 if rationales:
+    #                     rationale_by_label[rationale_label] = np.any(rationales, axis=0).astype(int)
+    #                 else:
+    #                     rationale_by_label[rationale_label] = np.zeros(len(tokens), dtype=int)
     #         else:
+    #             # Fallback for missing or invalid rationale
+    #             rationale_by_label[rationale_label] = np.zeros(len(tokens), dtype=int)
 
-    #             rationale_by_label[
-    #                 rationale_label
-    #             ] = self._get_rationale_one_hot_encoding(
-    #                 offsets, rationale_offsets, len(tokens)
-    #             ).astype(
-    #                 int
-    #             )
+    #     # Return a single 1D array for the given rationale_label
+    #     return rationale_by_label[rationale_label]
 
-    #     return rationale_by_label
+    def _get_rationale(self, idx, split_type: str = 'test', rationale_union=True):
+
+        item_idx = self._get_item(idx, split_type)
+        text = self._get_text(item_idx)
+
+        tokenizer = self.tokenizer
+        encoded_text = tokenizer.encode_plus(
+            text, return_offsets_mapping=True, return_attention_mask=False
+        )
+        tokens = tokenizer.convert_ids_to_tokens(encoded_text["input_ids"])
+        offsets = encoded_text["offset_mapping"]
+
+        rationale_field_name = "evidences"
+
+        # Movie rationales are defined for the ground truth label
+        rationale_label = self._get_ground_truth(idx, split_type)
+
+        rationale_by_label = [NONE_RATIONALE for c in self.classes]
+
+        if rationale_field_name in item_idx:
+            text_rationales = item_idx[rationale_field_name]
+
+            rationale_offsets = self._get_offset_rationale(text, text_rationales)
+            if len(text_rationales) > 0 and isinstance(text_rationales, list):
+                # It is a list of lists
+                if rationale_union:
+                    # We get the union of the rationales.
+                    rationale_offsets = [t1 for t in rationale_offsets for t1 in t]
+                    rationale_by_label[
+                        rationale_label
+                    ] = self._get_rationale_one_hot_encoding(
+                        offsets, rationale_offsets, len(tokens)
+                    ).astype(
+                        int
+                    )
+
+                else:
+                    return rationale_by_label
+            else:
+
+                rationale_by_label[
+                    rationale_label
+                ] = self._get_rationale_one_hot_encoding(
+                    offsets, rationale_offsets, len(tokens)
+                ).astype(
+                    int
+                )
+         # Here we ensure the output is a single 1D array
+        if rationale_union:
+            # If rationale_union is True, return the single unified rationale as a 1D array
+            # Filter out empty lists before using zip
+            non_empty_rationale_by_label = [r for r in rationale_by_label if len(r)>0]  # Remove empty lists
+            if non_empty_rationale_by_label:
+                final_rationale = [int(any(each)) for each in zip(*non_empty_rationale_by_label)]  # Union of all rationales
+            else:
+                final_rationale = []  # If no valid rationale exists, return an empty list
+            return final_rationale
+        else:
+            # Otherwise, return the rationale for the specific label (may be a list of lists if rationale_union is False)
+            return rationale_by_label
+    
     
     def get_instance(self, idx: int, split_type: str = "test", combine_rationales: bool = True) -> Dict[str, Any]:
         """

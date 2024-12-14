@@ -4,6 +4,7 @@ import json
 from tqdm import tqdm
 import copy
 import numpy as np
+
 class SaliencyScoreManager:
     """
     A generic class to compute, save, and load saliency scores for different models and explainers.
@@ -24,37 +25,34 @@ class SaliencyScoreManager:
         self.tokenizer = tokenizer
         self.device = device
         self.explainer = explainer_class(model, tokenizer, device=device, **explainer_kwargs)
-    
-    def lp_normalize_saliency_data(self,saliency_data, ord=1):
-        """Run Lp-normalization of saliency scores in the given data.
+
+    def lp_normalize(self,explanations, ord=1):
+        """Run Lp-noramlization of explanation attribution scores
 
         Args:
-            saliency_data (List[Dict]): List of dictionaries containing text, saliency scores, etc.
-            ord (int, optional): Order of the norm. Defaults to 1.
+            explanations (List[Explanation]): list of explanations to normalize
+            ord (int, optional): order of the norm. Defaults to 1.
 
         Returns:
-            List[Dict]: List of dictionaries with normalized saliency scores.
+            List[Explanation]: list of normalized explanations
         """
-        new_saliency_data = list()  # Will hold the new data with normalized saliency scores
-        for data in saliency_data:
-            new_data = copy.copy(data)  # Make a copy of the data entry to preserve original
-            
-            # Extract the saliency scores and apply Lp normalization
-            saliency_scores = np.array(new_data['saliency_scores'])
-            
-            # Compute the Lp norm
-            norm = np.linalg.norm(saliency_scores, ord=ord)
-            
-            if norm != 0:  # Avoid division by zero
-                saliency_scores /= norm  # Normalize the saliency scores
-            
-            new_data['saliency_scores'] = saliency_scores.tolist()  # Update the saliency scores in the new data
-            
-            # Add the new data entry to the output list
-            new_saliency_data.append(new_data)
-        return new_saliency_data
 
-    def compute_and_save_scores(self, dataset, save_path, split_type="test"):
+        new_exps = list()
+        for exp in explanations:
+            new_exp = copy.copy(exp)
+            if isinstance(new_exp.scores, np.ndarray) and new_exp.scores.size > 0:
+                norm_axis = (
+                    -1 if new_exp.scores.ndim == 1 else (0, 1)
+                )  # handle axis correctly
+                norm = np.linalg.norm(new_exp.scores, axis=norm_axis, ord=ord)
+                if norm != 0:  # avoid division by zero
+                    new_exp.scores /= norm
+            new_exps.append(new_exp)
+
+        return new_exps
+    
+
+    def compute_and_save_scores(self, dataset, save_path,order: int = 1, split_type="test"):
         """
         Computes saliency scores for a dataset and saves them to a file.
         
@@ -64,9 +62,11 @@ class SaliencyScoreManager:
             split_type: The split of the dataset (e.g., "test", "train").
         """
         saliency_data = []
+        explanations = list()
         print(f'dataset length {dataset.len()}')
+    
         # Loop through the dataset
-        for idx in tqdm(range(dataset.len())): #dataset.get_data_length()
+        for idx in tqdm(range(1)): #dataset.get_data_length()
 
             instance = dataset.get_instance(idx, split_type=split_type)
             print(f"instance-------------- {instance}")
@@ -74,20 +74,26 @@ class SaliencyScoreManager:
             target_label = instance['label']
 
             # Compute saliency scores
-            explanation = self.explainer.compute_feature_importance(text, target=target_label)
+            exp = self.explainer.compute_feature_importance(text, target=target_label)
+            explanations.append(exp)
+            explanations = self.lp_normalize(explanations, order)
+
+            print(f"explaination scores {explanations}")
 
             # Store text, tokens, and scores
             saliency_data.append({
                 "text": text,
                 "label": target_label,
-                "tokens": explanation.tokens,
-                "saliency_scores": explanation.scores.tolist()  # Convert numpy array to list
+                "tokens": exp.tokens,
+                "saliency_scores": exp.scores.tolist()  # Convert numpy array to list
             })
-        explanations = self.lp_normalize_saliency_data(saliency_data)
+        
+        print(f"saliency data {saliency_data}")
         #Save to file
-        with open(save_path, "w") as f:
-            json.dump(saliency_data, f)
-        print(f"Saliency scores saved to {save_path}")
+        # with open(save_path, "w") as f:
+        #     json.dump(saliency_data, f)
+        # print(f"Saliency scores saved to {save_path}")
+  
 
     def load_scores(self, file_path):
         """

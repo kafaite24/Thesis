@@ -1,5 +1,5 @@
 import numpy as np
-
+import copy
 def top_k_selection(saliency_scores, k=7):
     """
     Select top-k saliency scores based on their absolute values.
@@ -42,3 +42,28 @@ def min_max_normalize(values):
     normalized_values = (values - min_val) / (max_val - min_val)
     
     return normalized_values
+
+def lp_normalize(self,explanations, ord=1):
+        """Run Lp-noramlization of explanation attribution scores
+
+        Args:
+            explanations (List[Explanation]): list of explanations to normalize
+            ord (int, optional): order of the norm. Defaults to 1.
+
+        Returns:
+            List[Explanation]: list of normalized explanations
+        """
+
+        new_exps = list()
+        for exp in explanations:
+            new_exp = copy.copy(exp)
+            if isinstance(new_exp.scores, np.ndarray) and new_exp.scores.size > 0:
+                norm_axis = (
+                    -1 if new_exp.scores.ndim == 1 else (0, 1)
+                )  # handle axis correctly
+                norm = np.linalg.norm(new_exp.scores, axis=norm_axis, ord=ord)
+                if norm != 0:  # avoid division by zero
+                    new_exp.scores /= norm
+            new_exps.append(new_exp)
+
+        return new_exps

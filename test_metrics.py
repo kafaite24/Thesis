@@ -6,6 +6,7 @@ from transformers import (
     RobertaForSequenceClassification,
     RobertaTokenizerFast,
 )
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from explainers.saliencymanager import SaliencyScoreManager
 from explainers import IntegratedGradientsExplainer, InputXGradientExplainer
 from dataset_loaders import MovieReviews, HateXplain
@@ -40,18 +41,23 @@ class ExplainerEvaluator:
 
 
     def initialize_model_and_tokenizer(self):
-        """Initialize the model and tokenizer dynamically based on the model name."""
-        if "roberta" in self.model_name:
-            model = RobertaForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
-            tokenizer = RobertaTokenizerFast.from_pretrained(self.model_name, clean_up_tokenization_spaces=True)
-        elif "bert" in self.model_name:
-            model = BertForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
-            tokenizer = BertTokenizerFast.from_pretrained(self.model_name, clean_up_tokenization_spaces=True)
-        else:
-            raise ValueError(f"Model {self.model_name} is not supported.")
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(self.model_name).to('cpu')
         
-        model.to(self.device)  # Move model to the correct device (GPU/CPU)
         return model, tokenizer
+
+        # """Initialize the model and tokenizer dynamically based on the model name."""
+        # if "roberta" in self.model_name:
+        #     model = RobertaForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
+        #     tokenizer = RobertaTokenizerFast.from_pretrained(self.model_name, clean_up_tokenization_spaces=True,add_prefix_space=True)
+        # elif "bert" in self.model_name:
+        #     model = BertForSequenceClassification.from_pretrained(self.model_name, num_labels=self.num_labels)
+        #     tokenizer = BertTokenizerFast.from_pretrained(self.model_name, clean_up_tokenization_spaces=True)
+        # else:
+        #     raise ValueError(f"Model {self.model_name} is not supported.")
+        
+        # model.to(self.device)  # Move model to the correct device (GPU/CPU)
+        # return model, tokenizer
 
     def _default_explainers(self):
         """Return a default list of explainers."""

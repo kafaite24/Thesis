@@ -119,14 +119,9 @@ class ROAREvaluator:
         # Get the data instance
         batch= self.dataset.get_instance(idx, split_type='test')
         # batch = self.dataset[idx]
-        tokens = batch['tokens']
-        
+        tokens = batch['tokens'] 
         importance_scores = self.importance_scores[idx]['saliency_scores']
         importance_scores = min_max_normalize(importance_scores)
-        
-        # # Initialize the number of tokens to mask at this step
-        # mask_proportion = self.k / len(tokens)  # Initially mask k tokens
-        # Initialize the number of tokens to mask at this step
         mask_proportion = 0.0  # Start with 0% masking
         step_size = 0.1  # Increase by 10% at each step
 
@@ -136,8 +131,6 @@ class ROAREvaluator:
             masked_tokens = self.mask_tokens(tokens, importance_scores, mask_proportion)
             batch['tokens'] = masked_tokens  # Update the batch with masked tokens
             # print(f"masked tokens {masked_tokens}")
-
-
             # Evaluate the model with the masked tokens
             loss, accuracy, f1, precision, recall = self.evaluate(batch)
             
@@ -152,9 +145,6 @@ class ROAREvaluator:
                 "precision": precision,
                 "recall": recall
             })
-            
-            # # Increase the mask proportion for the next step, based on the recursive step size
-            # mask_proportion += self.recursive_step_size / len(tokens)
             # Increase the mask proportion for the next step
             mask_proportion += step_size
         return results
@@ -301,7 +291,6 @@ class ROAREvaluator:
         #     'racu_score_f1': racu_score_f1,
         #     'all_results': all_results
         # }
-    
 
     def plot_accuracy_curves(self, mask_proportions, importance_curve_accuracy, baseline_curve_accuracy):
         """
@@ -313,25 +302,13 @@ class ROAREvaluator:
             baseline_curve_accuracy (list): Combined baseline curve for accuracy.
         """
         plt.figure(figsize=(10, 8))
-        
-        # Plot combined importance curve for accuracy
         plt.plot(mask_proportions, importance_curve_accuracy, label="Importance Curve (Accuracy)", marker='o', linestyle='-', linewidth=2, color='blue')
-
-        # Plot combined baseline curve for accuracy
         plt.plot(mask_proportions, baseline_curve_accuracy, label="Baseline Curve (Accuracy)", marker='x', linestyle='--', linewidth=2, color='red')
-
-        # Add title and labels
         plt.title("Performance Curves: Accuracy vs Mask Proportion", fontsize=16)
         plt.xlabel("Mask Proportion (%)", fontsize=14)
         plt.ylabel("Accuracy", fontsize=14)
-
-        # Add gridlines for better readability
         plt.grid(True)
-
-        # Show legend to distinguish between the curves
         plt.legend()
-
-        # Show the plot
         plt.show()
 
 
@@ -345,32 +322,18 @@ class ROAREvaluator:
             baseline_curve_f1 (list): Combined baseline curve for F1 scores.
         """
         plt.figure(figsize=(10, 8))
-        
-        # Plot combined importance curve for F1 score
         plt.plot(mask_proportions, importance_curve_f1, label="Importance Curve (F1 Score)", marker='o', linestyle='-', linewidth=2, color='green')
-
-        # Plot combined baseline curve for F1 score
         plt.plot(mask_proportions, baseline_curve_f1, label="Baseline Curve (F1 Score)", marker='x', linestyle='--', linewidth=2, color='orange')
-
-        # Add title and labels
         plt.title("Performance Curves: F1 Score vs Mask Proportion", fontsize=16)
         plt.xlabel("Mask Proportion (%)", fontsize=14)
         plt.ylabel("F1 Score", fontsize=14)
-
-        # Add gridlines for better readability
         plt.grid(True)
-
-        # Show legend to distinguish between the curves
         plt.legend()
-
-        # Show the plot
         plt.show()
-  
 
     def compute_area_between_curves(self, importance_curve, baseline_curve):
         """
         Compute the area between two curves using the trapezoidal rule (numerical integration).
-        
         Args:
             importance_curve (list): The performance curve based on the importance measure.
             baseline_curve (list): The performance curve based on the random baseline.
@@ -380,15 +343,12 @@ class ROAREvaluator:
         """
         area_faithfulness = 0.0
         area_baseline = 0.0
-        
         # Calculate areas using the trapezoidal rule
         for i in range(1, len(importance_curve)):
             delta_x = 10  # Since the step size is 10%
-            
             # Calculate the deltas between consecutive points for both curves
             delta_p = importance_curve[i] - importance_curve[i - 1]
             delta_b = baseline_curve[i] - baseline_curve[i - 1]
-            
             # Compute areas using the trapezoidal rule
             area_faithfulness += 0.5 * delta_x * (importance_curve[i - 1] + importance_curve[i])
             area_baseline += 0.5 * delta_x * (baseline_curve[i - 1] + baseline_curve[i])
@@ -407,11 +367,9 @@ class ROAREvaluator:
             float: The RACU score.
         """
         area_faithfulness, area_baseline = self.compute_area_between_curves(importance_curve, baseline_curve)
-        
         # Avoid division by zero in case the baseline area is zero
         if area_baseline == 0:
             return 0
-        
         # Normalize the area by the baseline area
         racu = area_faithfulness / area_baseline
         return racu
@@ -426,30 +384,15 @@ class ROAREvaluator:
         """
         # Define the masking proportions (from 0% to 100% in steps of 10%)
         mask_proportions = np.arange(0, 1.1, 0.1)  # 0%, 10%, ..., 100%
-        
         plt.figure(figsize=(8, 6))
-
-        # Plot the importance curve (based on importance-based masking)
         plt.plot(mask_proportions, importance_curve, label="Importance Curve", color='blue', marker='o', linestyle='-', linewidth=2)
-
-        # Plot the baseline curve (based on random shuffling)
         plt.plot(mask_proportions, baseline_curve, label="Baseline Curve", color='red', marker='x', linestyle='--', linewidth=2)
-
-        # Add title and labels
         plt.title("Performance Curves: Importance vs Baseline", fontsize=16)
         plt.xlabel("Mask Proportion (%)", fontsize=14)
         plt.ylabel("Accuracy", fontsize=14)
-
-        # Add gridlines for better readability
         plt.grid(True)
-
-        # Show legend to distinguish between the curves
         plt.legend()
-
-        # Show the plot
         plt.show()
-
-
 
 def compute_all_ROAR(dataset, model, tokenizer, saliency_scores):
     # Initialize the FADEvaluator

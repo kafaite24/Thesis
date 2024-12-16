@@ -9,6 +9,7 @@ from explanation import Explanation
 import copy
 import logging
 from explainers.integratedgradient import IntegratedGradientsExplainer
+from explainers.deeplift import DeepLiftExplainer
 from explainers.gradientxinput import InputXGradientExplainer
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from utils.visualization import show_table
@@ -37,7 +38,8 @@ class SimpleExplainerEvaluator:
 
     def _default_explainers(self):
         """Return a default list of explainers."""
-        return [IntegratedGradientsExplainer(self.model, self.tokenizer),]
+        return [DeepLiftExplainer(self.model, self.tokenizer),
+        IntegratedGradientsExplainer(self.model, self.tokenizer),]
                 # InputXGradientExplainer(self.model, self.tokenizer)]
     
     def lp_normalize(self,explanations, ord=1):

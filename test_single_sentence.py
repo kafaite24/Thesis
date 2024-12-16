@@ -17,7 +17,7 @@ import pandas as pd
 from utils.text_helpers import SequenceClassificationHelper
 
 class SimpleExplainerEvaluator:
-    def __init__(self, model_name="bert-base-uncased", num_labels=3, device=None, explainers=None):
+    def __init__(self, model_name="", num_labels=3, device=None, explainers=None):
         """
         Initializes the evaluator with a pre-trained model and tokenizer.
         """
@@ -102,6 +102,7 @@ class SimpleExplainerEvaluator:
     def compute_score_single_sentence(self,text: str,return_dict: bool = True):
 
         _, logits = self.helper._forward(text, output_hidden_states=False)
+        print(f"logits {logits}")
         scores = logits[0].softmax(-1)
 
         if return_dict:

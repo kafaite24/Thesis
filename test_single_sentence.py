@@ -37,8 +37,8 @@ class SimpleExplainerEvaluator:
 
     def _default_explainers(self):
         """Return a default list of explainers."""
-        return [IntegratedGradientsExplainer(self.model, self.tokenizer),
-                InputXGradientExplainer(self.model, self.tokenizer)]
+        return [IntegratedGradientsExplainer(self.model, self.tokenizer),]
+                # InputXGradientExplainer(self.model, self.tokenizer)]
     
     def lp_normalize(self,explanations, ord=1):
         """Run Lp-noramlization of explanation attribution scores
@@ -75,44 +75,7 @@ class SimpleExplainerEvaluator:
         target_token: Optional[str] = None,
         target_option: Optional[str] = None,
     ) -> List[Explanation]:
-        """
-        Compute explanations using all the explainers stored in the class.
-
-        Parameters
-        ----------
-        text : str
-            Text string to explain.
-        target : int
-            Class label to produce the explanations for.
-        show_progress : bool, default False
-            Enable progress bar.
-        normalize_scores : bool, default True
-            Apply lp-normalization across tokens to make attribution weights comparable across different explainers.
-        order : int, default 1
-            If *normalize_scores=True*, this is the normalization order, as passed to *numpy.linalg.norm*.
-
-        Returns
-        -------
-
-        List[Explanation]
-            List of all explanations produced.
-
-        Notes
-        -----
-
-        Please reference to :ref:`User Guide <explaining>` for more information.
-
-        Examples
-        --------
-        >>> bench = Benchmark(model, tokenizer)
-        >>> explanations = bench.explain("I love your style!", target=2)
-
-        Please note that by default we apply L1 normalization across tokens, to make feature attribution weights comparable among explainers. To turn it off, you should use:
-
-        >>> bench = Benchmark(model, tokenizer)
-        >>> explanations = bench.explain("I love your style!", target=2, normalize_scores=False)
-        """
-
+    
         text = self.helper._check_sample(text)
         explanations = list()
         for explainer in tqdm(
@@ -125,11 +88,12 @@ class SimpleExplainerEvaluator:
             exp = explainer.compute_feature_importance(
                 text, target, target_token
             )
-            print(exp)
+            
             explanations.append(exp)
 
         if normalize_scores:
             explanations = self.lp_normalize(explanations, order)
+        print(explanations)
         return explanations
     
   

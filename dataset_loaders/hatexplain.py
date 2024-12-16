@@ -111,7 +111,6 @@ class HateXplain():
 
             # Get the final rationale (converted from words to tokens)
             rationale_by_label[rationale_label] = self.get_true_rationale_from_words_to_tokens(word_based_tokens, rationale)
-            print(f"rationale label {rationale_by_label}")
         # Here we ensure the output is a single 1D array
         if rationale_union:
             # If rationale_union is True, return the single unified rationale as a 1D array
@@ -121,7 +120,6 @@ class HateXplain():
                 final_rationale = [int(any(each)) for each in zip(*non_empty_rationale_by_label)]  # Union of all rationales
             else:
                 final_rationale = []  # If no valid rationale exists, return an empty list
-            print(f"final rationale {final_rationale}")
             return final_rationale
         else:
             # Otherwise, return the rationale for the specific label (may be a list of lists if rationale_union is False)

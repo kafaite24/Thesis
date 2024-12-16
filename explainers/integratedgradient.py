@@ -155,7 +155,7 @@ class IntegratedGradientsExplainer(BaseExplainer):
         model,
         tokenizer,
         model_helper: Optional[str] = None,
-        multiply_by_inputs: bool = True,
+        multiply_by_inputs: bool = False,
         device= "cpu",
         **kwargs,
     ):
@@ -209,9 +209,6 @@ class IntegratedGradientsExplainer(BaseExplainer):
         )
         inputs = self.get_input_embeds(text)
         baselines = self._generate_baselines(input_len)
-        print(f"Input shape: {inputs.shape}")
-        print(f"Baseline shape: {baselines.shape}")
-        print(f"Target token position: {target_pos_idx}")
         attr = dl.attribute(inputs, baselines=baselines, target=target_pos_idx, **kwargs)
 
         attr = attr[0, :input_len, :].detach().cpu()

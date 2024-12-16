@@ -132,6 +132,7 @@ class InputXGradientExplainer(BaseExplainer):
         tokenizer,
         model_helper: Optional[str] = None,
         multiply_by_inputs: bool = True,
+        device= "cpu",
         **kwargs,
     ):
         super().__init__(model, tokenizer, model_helper, **kwargs)

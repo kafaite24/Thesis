@@ -34,19 +34,19 @@ class ROAREvaluator:
         # Get the indices of [CLS] (index 0) and [SEP] (last token index)
         cls_index = 0
         sep_index = len(tokens) - 1
+        # # Sort the tokens by importance scores in descending order
+        # sorted_indices = np.argsort(importance_scores)[::-1]  # Sort indices based on importance_scores        
+        # Sort indices based on absolute values
+        sorted_indices = sorted(range(len(importance_scores)), key=lambda i: abs(importance_scores[i]), reverse=True)
 
-        # Sort the tokens by importance scores in descending order
-        sorted_indices = np.argsort(importance_scores)[::-1]  # Sort indices based on importance_scores        
-        
          # Print tokens in descending order of importance scores
-        tokens_sorted_by_importance = [tokens[idx] for idx in sorted_indices if idx != cls_index and idx != sep_index]
-        scores_sorted = [importance_scores[idx] for idx in sorted_indices if idx != cls_index and idx != sep_index]
+        # tokens_sorted_by_importance = [tokens[idx] for idx in sorted_indices if idx != cls_index and idx != sep_index]
+        # scores_sorted = [importance_scores[idx] for idx in sorted_indices if idx != cls_index and idx != sep_index]
         # print("Tokens sorted by importance scores (descending):")
         # for token, score in zip(tokens_sorted_by_importance, scores_sorted):
         #     print(f"{token}: {score}")
-
         # Determine the number of tokens to mask
-        num_tokens_to_mask = int(mask_proportion * (num_tokens-2))  # Don't mask [CLS] and [SEP]
+        num_tokens_to_mask = int(mask_proportion * (num_tokens))  # Don't mask [CLS] and [SEP]
         
         # Mask the tokens with the lowest importance scores
         masked_indices = 0
@@ -90,7 +90,7 @@ class ROAREvaluator:
         # accuracy = (preds == batch['label']).float().mean().item()
         # Compute accuracy
         accuracy = (preds == labels).float().mean()
-        print(f"preds {preds} labels {labels} acc {(preds==labels).float().mean()} loss {loss}")
+        # print(f"preds {preds} labels {labels} acc {(preds==labels).float().mean()} loss {loss}")
 
         # Compute F1 Score
         f1 = f1_score(labels, preds, average='weighted')  # Use 'weighted' for multi-class datasets
@@ -101,8 +101,6 @@ class ROAREvaluator:
         recall = recall_score(labels.cpu(), preds.cpu(), average='weighted',zero_division=0)
 
         return loss.item(), accuracy, f1, precision, recall
-        
-        # return loss.item(), accuracy
 
     def recursive_masking(self, idx):
         """
@@ -121,7 +119,7 @@ class ROAREvaluator:
         # batch = self.dataset[idx]
         tokens = batch['tokens'] 
         importance_scores = self.importance_scores[idx]['saliency_scores']
-        importance_scores = min_max_normalize(importance_scores)
+        # importance_scores = min_max_normalize(importance_scores)
         mask_proportion = 0.0  # Start with 0% masking
         step_size = 0.1  # Increase by 10% at each step
 
@@ -170,7 +168,7 @@ class ROAREvaluator:
             sep_index = len(tokens) - 1
 
             # Randomly select tokens to mask (excluding [CLS] and [SEP])
-            num_tokens_to_mask = int(mask_proportion * (num_tokens - 2))  # Don't mask [CLS] and [SEP]
+            num_tokens_to_mask = int(mask_proportion * (num_tokens-2))  # Don't mask [CLS] and [SEP]
             random_indices = np.random.choice(
                 [i for i in range(len(tokens)) if i != cls_index and i != sep_index], 
                 size=num_tokens_to_mask, 
@@ -213,7 +211,7 @@ class ROAREvaluator:
         all_importance_curves_precision = []
         all_importance_curves_recall = []
         # Iterate over the entire dataset
-        for idx in range(100):  # Evaluate all samples in the dataset
+        for idx in range(self.dataset.len()):  # Evaluate all samples in the dataset
             print(f"Processing instance {idx}...")
             results = self.recursive_masking(idx)
             # print(f"results {results}")
@@ -253,9 +251,9 @@ class ROAREvaluator:
         avg_importance_curve_precision = np.mean(np.array(all_importance_curves_precision), axis=0)
         avg_importance_curve_recall = np.mean(np.array(all_importance_curves_recall), axis=0)
 
-        print(f"avg_importance_curves_accuracy {avg_importance_curve_accuracy}")
-        print(f"avg_importance_curves_precision {avg_importance_curve_precision}")
-        print(f"avg_importance_curves_recall {avg_importance_curve_recall}")
+        # print(f"avg_importance_curves_accuracy {avg_importance_curve_accuracy}")
+        # print(f"avg_importance_curves_precision {avg_importance_curve_precision}")
+        # print(f"avg_importance_curves_recall {avg_importance_curve_recall}")
         # # # Accumulate total loss, accuracy, and F1 score
         # for result in results:
         #     total_loss += result['loss']
@@ -267,9 +265,9 @@ class ROAREvaluator:
         # print(f"imp f1 {avg_importance_curve_f1} baseline f1 {avg_baseline_curve_f1}")
 
         # Compute RACU score for the entire dataset
-        # racu_score_accuracy = self.compute_racu(avg_importance_curve_accuracy, avg_baseline_curve_accuracy)
+        racu_score_accuracy = self.compute_racu(avg_importance_curve_accuracy, avg_baseline_curve_accuracy)
         # racu_score_f1 = self.compute_racu(avg_importance_curve_f1, avg_baseline_curve_f1)
-        # print(f"RACU scores - Accuracy: {racu_score_accuracy}, F1 Score: {racu_score_f1}")
+        print(f"RACU scores - Accuracy: {racu_score_accuracy}")
 
         # avg_loss = total_loss / total_samples
         # avg_accuracy = total_accuracy / total_samples
@@ -283,14 +281,15 @@ class ROAREvaluator:
         self.plot_accuracy_curves(mask_proportions, avg_importance_curve_accuracy, avg_baseline_curve_accuracy)
         # self.plot_f1_curves(mask_proportions, avg_importance_curve_f1, avg_baseline_curve_f1)
         
-        # return {
-        #     'average_loss': avg_loss,
-        #     'average_accuracy': avg_accuracy,
-        #     'average_f1_score': avg_f1_score,
-        #     'racu_score_accuracy': racu_score_accuracy,
-        #     'racu_score_f1': racu_score_f1,
-        #     'all_results': all_results
-        # }
+        return racu_score_accuracy
+    # {
+    #         # 'average_loss': avg_loss,
+    #         # 'average_accuracy': avg_accuracy,
+    #         # 'average_f1_score': avg_f1_score,
+    #         'racu_score_accuracy': racu_score_accuracy,
+    #         # 'racu_score_f1': racu_score_f1,
+    #         # 'all_results': all_results
+    #     }
 
     def plot_accuracy_curves(self, mask_proportions, importance_curve_accuracy, baseline_curve_accuracy):
         """
@@ -407,6 +406,6 @@ def compute_all_ROAR(dataset, model, tokenizer, saliency_scores):
             use_gpu=True
         )
 
-    roar_evaluator.evaluate_on_dataset()
+    return roar_evaluator.evaluate_on_dataset()
 
 

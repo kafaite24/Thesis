@@ -56,10 +56,10 @@ class IOUEvaluator:
             dict: Average metrics across the dataset split, including F1 IOU.
         """
         metrics_list = []
-
-        print(f"Evaluating {split_type} split...")
         # Iterate over precomputed saliency scores
         for idx, entry in enumerate(self.saliency_scores):
+            # if idx >= 2:  # Limit to 2 entries
+            #     break
             instance = self.dataset.get_instance(idx, split_type=split_type)          
             ground_truth_rationale = instance["rationale"]
             saliency_scores = np.array(entry["saliency_scores"])
@@ -67,8 +67,8 @@ class IOUEvaluator:
             predicted_rationale= top_k_selection(saliency_scores,k)
            
             # Ensure the instance and entry are aligned
-            if instance["text"] != entry["text"]:
-                print(f"Mismatch! Instance text: {instance['text']}, Saliency text: {entry['text']}")
+            if instance["text"] != entry["text"][0]:
+                print(f"Mismatch! Instance text: {instance['text']}, Saliency text: {entry['text'][0]}")
                 return
             # Calculate metrics
             metrics = self.calculate_discrete_metrics(predicted_rationale, ground_truth_rationale)

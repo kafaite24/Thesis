@@ -185,7 +185,6 @@ class SequenceClassificationHelper(BaseTextTaskHelper):
         return scores
 
     def _check_target(self, target):
-        print(f"target-----------{list(self.model.config.label2id.keys())}")
         if isinstance(target, str) and target not in self.model.config.label2id:
             raise ValueError(
                 f"Target {target} is not a valid target. Use a string among: {list(self.model.config.label2id.keys())}"

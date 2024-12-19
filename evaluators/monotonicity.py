@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
 class MonotonicityEvaluator:
-    def __init__(self, model, tokenizer, baseline_token="[MASK]"):
+    def __init__(self, model, tokenizer, baseline_token="[MASK]", batch_size=16):
         """
         Initializes the MonotonicityEvaluator.
 
@@ -10,10 +11,12 @@ class MonotonicityEvaluator:
             model: Pre-trained classification model (e.g., BERT for sentiment analysis).
             tokenizer: Tokenizer corresponding to the model.
             baseline_token: Token used to mask input tokens.
+            batch_size: Number of texts to process in one batch.
         """
         self.model = model
         self.tokenizer = tokenizer
         self.baseline_token = baseline_token
+        self.batch_size = batch_size
 
     def mask_all_tokens(self, tokens):
         """
@@ -27,6 +30,35 @@ class MonotonicityEvaluator:
         """
         return [self.baseline_token] * len(tokens)
 
+    def compute_confidences(self, texts):
+        """
+        Compute model confidences for a batch of texts.
+
+        Args:
+            texts (list of str): List of input texts.
+
+        Returns:
+            numpy.ndarray: Array of confidences for the predicted class.
+        """
+        all_confidences = []
+        for i in range(0, len(texts), self.batch_size):
+          
+            batch_texts = texts[i:i + self.batch_size]
+            inputs = self.tokenizer(
+                batch_texts, return_tensors="pt", truncation=True, padding=True, max_length=512
+            )
+            inputs = {key: val.to(self.model.device) for key, val in inputs.items()}
+            
+            with torch.no_grad():
+                logits = self.model(**inputs).logits
+                probs = torch.softmax(logits, dim=1).cpu().numpy()
+
+            pred_classes = np.argmax(probs, axis=1)
+            confidences = probs[np.arange(len(pred_classes)), pred_classes]
+            all_confidences.extend(confidences)
+
+        return np.array(all_confidences)
+
     def monotonicity_metric(self, tokens, saliency_scores, label):
         """
         Computes the monotonicity metric for a single instance.
@@ -38,125 +70,88 @@ class MonotonicityEvaluator:
 
         Returns:
             float: Monotonicity metric (fraction of monotonic increases).
+            bool: True if all confidence differences are positive, False otherwise.
         """
-        # print(f"\nEvaluating monotonicity for tokens: {tokens}")
-        # print(f"Saliency scores: {saliency_scores}")
-        print(f"True label: {label}")
-
-        # Convert tokens to text
-        original_text = self.tokenizer.convert_tokens_to_string(tokens)
-        # print(f"Original text: {original_text}")
-
-        # Tokenize original text and compute model's confidence
-        inputs = self.tokenizer(original_text, return_tensors="pt", truncation=True, padding=True)
-        inputs = {key: val.to(self.model.device) for key, val in inputs.items()}
-
-        with torch.no_grad():
-            logits = self.model(**inputs).logits
-            probs = torch.softmax(logits, dim=1).cpu().numpy()
-
-        pred_class = np.argmax(probs)
-        pred_confidence = probs[0][pred_class]
-
-        print(f"Predicted class: {pred_class}, Original confidence: {pred_confidence:.4f}")
+        saliency_scores = np.abs(saliency_scores[1:-1])  # Remove [CLS] and [SEP], take abs value
+        
+        # Sort indices by increasing saliency
+        sorted_indices = np.argsort(saliency_scores)
 
         # Mask all tokens
-        masked_tokens = self.mask_all_tokens(tokens)
-        masked_text = self.tokenizer.convert_tokens_to_string(masked_tokens)
-        # print(f"Masked text: {masked_text}")
+        masked_tokens = [self.baseline_token] * len(tokens)
 
-        inputs_masked = self.tokenizer(masked_text, return_tensors="pt", truncation=True, padding=True)
-        inputs_masked = {key: val.to(self.model.device) for key, val in inputs_masked.items()}
-
-        with torch.no_grad():
-            masked_logits = self.model(**inputs_masked).logits
-            masked_probs = torch.softmax(masked_logits, dim=1).cpu().numpy()
-
-        confidences = [masked_probs[0][pred_class]]
-        print(f"Initial confidence with all tokens masked: {confidences[0]:.4f}")
-
-        # Incrementally add tokens in order of saliency
-        sorted_indices = np.argsort(saliency_scores)  # Increasing order of saliency
-        print('printing len of sorted indices', len(sorted_indices))
-        i=0
+        # Generate incrementally unmasked texts
+        incremental_texts = []
         for idx in sorted_indices:
-            print('printing idx',i)
-            i+=1
             masked_tokens[idx] = tokens[idx]
-            incremental_text = self.tokenizer.convert_tokens_to_string(masked_tokens)
-            # print(f"Adding token '{tokens[idx]}': {incremental_text}")
+            incremental_texts.append(self.tokenizer.convert_tokens_to_string(masked_tokens))
 
-            inputs_incremental = self.tokenizer(incremental_text, return_tensors="pt", truncation=True, padding=True)
-            inputs_incremental = {key: val.to(self.model.device) for key, val in inputs_incremental.items()}
-
-            with torch.no_grad():
-                incremental_logits = self.model(**inputs_incremental).logits
-                incremental_probs = torch.softmax(incremental_logits, dim=1).cpu().numpy()
-
-            confidence = incremental_probs[0][pred_class]
-            confidences.append(confidence)
-            # print(f"Confidence after adding '{tokens[idx]}': {confidence:.4f}")
+        # Compute confidences for all incremental texts in batches
+        incremental_confidences = self.compute_confidences(incremental_texts)
 
         # Compute monotonicity metric
-        diff_confidences = np.diff(confidences)
+        diff_confidences = np.diff(incremental_confidences)
         monotonic_increases = np.sum(diff_confidences >= 0)
         monotonicity_score = monotonic_increases / len(diff_confidences)
 
-        # print(f"Confidence sequence: {confidences}")
-        print(f"Monotonicity metric for this instance: {monotonicity_score:.4f}\n")
+        # Check if fully monotonic
+        is_fully_monotonic = np.all(diff_confidences >= 0)
 
-        return monotonicity_score
+        return monotonicity_score, is_fully_monotonic
 
-    def evaluate_instance(self, tokens, saliency_scores, label):
+    def evaluate_dataset(self, saliency_scores_dict):
         """
-        Evaluate a single instance using the evaluator.
-        
+        Evaluate monotonicity across the entire dataset.
+
         Args:
-            tokens (list): List of tokens in the input.
-            saliency_scores (list): Saliency scores corresponding to the tokens.
-            label (int): Ground truth label.
-        
-        Returns:
-            float: Computed metric (e.g., monotonicity score).
-        """
-        return self.monotonicity_metric(tokens, saliency_scores, label)
+            saliency_scores_dict (list): List of instances, each with:
+                                         - tokens
+                                         - saliency_scores
+                                         - label
 
-    def evaluate_dataset(self, dataset):
-        """
-        Evaluate the entire dataset.
-        
-        Args:
-            dataset (list): List of dataset instances. Each instance should have:
-                            - tokens
-                            - saliency_scores
-                            - label
-        
         Returns:
-            float: Average score across the dataset.
+            dict: Average monotonicity score and percentage of fully monotonic instances.
         """
-      
         total_score = 0.0
-    
-        for i, data in enumerate(dataset[:5]):
-            print(f"Evaluating instance {i + 1}/{len(dataset)}")
+        fully_monotonic_count = 0
+        num_instances = len(saliency_scores_dict)
+        i=0
+        for data in saliency_scores_dict[:20]:
+            print(i)
+            i+=1
             tokens = data["tokens"]
             saliency_scores = data["saliency_scores"]
             label = data["label"]
-            
-            # Call the evaluation function for the instance
-            score = self.evaluate_instance(tokens, saliency_scores, label)
-            print(f"Score for instance {i + 1}: {score:.4f}")
+
+            # Compute monotonicity for the instance
+            score, is_fully_monotonic = self.monotonicity_metric(tokens, saliency_scores, label)
             total_score += score
-        
-        # Compute average score
-        average_score = total_score / len(dataset)
-        print(f"\nAverage Score Across Dataset: {average_score:.4f}")
-        return average_score
-    
+            if is_fully_monotonic:
+                fully_monotonic_count += 1
+
+        # Average monotonicity score
+        average_score = total_score / num_instances
+        fully_monotonic_percentage = (fully_monotonic_count / num_instances) * 100
+
+        return {
+            "average_monotonicity": average_score,
+            "fully_monotonic_percentage": fully_monotonic_percentage,
+        }
 
 
-def compute_all_monotonicity(model, tokenizer, saliency_scores, device="cpu"):
-    monotonicity_evaluator = MonotonicityEvaluator(model, tokenizer)
-    average_monotonicity = monotonicity_evaluator.evaluate_dataset(saliency_scores)
-    
-    return average_monotonicity
+def compute_all_monotonicity(model, tokenizer, dataset, saliency_scores, batch_size=16):
+    """
+    Compute monotonicity score across the dataset.
+
+    Args:
+        model: Pre-trained classification model.
+        tokenizer: Tokenizer corresponding to the model.
+        dataset: List of instances with tokens, saliency scores, and labels.
+        batch_size: Number of texts to process in one batch.
+
+    Returns:
+        dict: Average monotonicity score and percentage of fully monotonic instances.
+    """
+    monotonicity_evaluator = MonotonicityEvaluator(model, tokenizer, batch_size=batch_size)
+    metrics = monotonicity_evaluator.evaluate_dataset(saliency_scores)
+    return metrics

@@ -83,7 +83,7 @@ class SaliencyScoreManager:
             instance = dataset.get_instance(idx, split_type=split_type)
             text = instance['text']
             target_label = instance['label']
-            print(f"target label {target_label}")
+            # print(f"target label {target_label}")
             # Compute saliency scores
             exp = self.explainer.compute_feature_importance(text, target=target_label)
             exp = self.lp_normalize(exp, order)

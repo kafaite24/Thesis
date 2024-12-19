@@ -10,6 +10,7 @@ import copy
 import logging
 from explainers.integratedgradient import IntegratedGradientsExplainer
 from explainers.deeplift import DeepLiftExplainer
+from explainers.guidedbackprop import GuidedBackpropExplainer
 from explainers.gradientxinput import InputXGradientExplainer
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from utils.visualization import show_table
@@ -39,8 +40,8 @@ class SimpleExplainerEvaluator:
     def _default_explainers(self):
         """Return a default list of explainers."""
         return [DeepLiftExplainer(self.model, self.tokenizer),
-        IntegratedGradientsExplainer(self.model, self.tokenizer),]
-                # InputXGradientExplainer(self.model, self.tokenizer)]
+        IntegratedGradientsExplainer(self.model, self.tokenizer),
+                GuidedBackpropExplainer(self.model, self.tokenizer)]
     
     def lp_normalize(self,explanations, ord=1):
         """Run Lp-noramlization of explanation attribution scores
@@ -95,14 +96,14 @@ class SimpleExplainerEvaluator:
 
         if normalize_scores:
             explanations = self.lp_normalize(explanations, order)
-        print(explanations)
+        # print(explanations)
         return explanations
     
   
     def compute_score_single_sentence(self,text: str,return_dict: bool = True):
 
         _, logits = self.helper._forward(text, output_hidden_states=False)
-        print(f"logits {logits}")
+        # print(f"logits {logits}")
         scores = logits[0].softmax(-1)
 
         if return_dict:

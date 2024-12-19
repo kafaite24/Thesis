@@ -39,16 +39,17 @@ class FADEvaluator:
         Returns:
             List[str]: Tokens with top features replaced by a baseline token.
         """
+        tokens_modified = tokens.copy()
         num_tokens_to_drop = int(len(tokens) * percent_to_drop / 100)
-        saliency_sorted_indices = np.argsort(-saliency_scores)  # Descending order
+        
+        saliency_sorted_indices = np.argsort(-np.abs(saliency_scores))  # Descending order
         tokens_to_replace = saliency_sorted_indices[:num_tokens_to_drop]
-
+        
         # Replace selected tokens with a baseline token (e.g., [MASK])
         baseline_token = self.tokenizer.mask_token
         for idx in tokens_to_replace:
-            tokens[idx] = baseline_token
-
-        return tokens
+            tokens_modified[idx] = baseline_token
+        return tokens_modified
 
     def evaluate(self, percent_dropped_features, split_type="test"):
         """
@@ -62,39 +63,42 @@ class FADEvaluator:
             pd.DataFrame: Accuracy scores for each percentage of tokens dropped.
         """
         results = []
-
+        
         for percent_to_drop in percent_dropped_features:
             predictions, labels = [], []
-            print(f"perc to drop {percent_to_drop}")
-            for idx, entry in enumerate(self.saliency_scores):
-                print(idx)
-                # Get the text and saliency scores
+            print(f"------------------------perc to drop {percent_to_drop}-------------------------------------")
+            for idx, entry in enumerate(self.saliency_scores[:1]): 
+                print(f"------------------------idx {idx}-------------------------------------")
+
                 text = entry["text"]
                 tokens = entry["tokens"]
                 saliency_scores = np.array(entry["saliency_scores"])
                 label = entry["label"]
-
                 # Replace tokens with baseline values
                 modified_tokens = self._replace_tokens_with_baseline(tokens, saliency_scores, percent_to_drop)
+               
                 # Detokenize back into a string
                 modified_text = self.tokenizer.convert_tokens_to_string(modified_tokens)
-                # print(f"modified text {modified_text}")
                 # Tokenize and encode input for the model
                 encoded_input = self.tokenizer(modified_text, return_tensors="pt", truncation=True, padding=True).to(self.device)
 
                 # Make prediction
                 with torch.no_grad():
                     logits = self.model(**encoded_input).logits
+                
                 prediction = torch.argmax(logits, dim=1).item()
-                # print(f"prediction {prediction}     label {label}")
+                # Convert label to numerical format if it's a string
+                if isinstance(label, str):
+                    label = self.model.config.label2id[label]
+
                 predictions.append(prediction)
                 labels.append(label)
 
             # Compute accuracy
             accuracy = accuracy_score(labels, predictions)
-            # print(f"accuracy {accuracy}")
+            print(f"Percent Dropped: {percent_to_drop} Accuracy: {accuracy}")
             results.append({"Percent Dropped": percent_to_drop, "Accuracy": accuracy})
-
+        
         # Convert results to DataFrame
         results_df = pd.DataFrame(results)
         return results_df
@@ -120,7 +124,7 @@ class FADEvaluator:
 
         # Calculate the area under the curve using trapezoidal integration
         auc = trapz(y, x)
-
+        
         # Calculate the maximum possible area
         max_auc = (x[-1] - x[0]) * max(y)
 

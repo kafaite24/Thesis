@@ -11,7 +11,7 @@ from evaluators.monotonicity import compute_all_monotonicity
 from evaluators.IOU import compute_all_IOU
 from evaluators.sensitivity import compute_all_sensitivity
 from evaluators.AUPRC import evaluate
-from evaluators.recursiveROAR import compute_all_ROAR
+# from evaluators.recursiveROAR import compute_all_ROAR
 import datasets
 from typing import Dict, List, Optional, Union
 import json
